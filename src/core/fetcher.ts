@@ -3,7 +3,7 @@
  * Uses undici for efficient HTTP/HTTPS requests.
  */
 
-import { request } from "undici";
+import { request, ProxyAgent } from "undici";
 
 /**
  * Structured fetch result.
@@ -19,13 +19,15 @@ export interface FetchResult {
 
 /**
  * Fetch a URL and return structured response.
- * Uses Node.js built-in fetch (available since Node 18).
+ * Supports optional proxy via undici ProxyAgent.
  *
  * @param url - Target URL to fetch
+ * @param proxy_url - Optional proxy URL (e.g. "http://127.0.0.1:10808")
  * @returns Promise resolving to FetchResult
  */
-export async function fetch_url(url: string): Promise<FetchResult> {
-  const response = await request(url);
+export async function fetch_url(url: string, proxy_url?: string): Promise<FetchResult> {
+  const dispatcher = proxy_url ? new ProxyAgent(proxy_url) : undefined;
+  const response = await request(url, { dispatcher });
 
   const body = await response.body.text();
   const content_type = response.headers["content-type"] as string | undefined;

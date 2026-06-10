@@ -3,7 +3,6 @@
  * Converts raw body content between formats (HTML→Markdown, JSON→pretty, etc).
  */
 
-import { JSDOM } from "jsdom";
 import TurndownService from "turndown";
 
 /* eslint-disable @typescript-eslint/naming-convention */
@@ -21,15 +20,8 @@ const turndown_service = new TurndownService({
  * @returns Markdown string
  */
 export function convert_html_to_markdown(html: string): string {
-  if (html === "") {
-    return "";
-  }
-
-  const dom = new JSDOM(html);
-  const document = dom.window.document;
-  const body = document.body;
-
-  return turndown_service.turndown(body);
+  if (html === "") { return ""; }
+  return turndown_service.turndown(html);
 }
 
 /**

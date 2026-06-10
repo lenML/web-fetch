@@ -27,6 +27,7 @@ export default tseslint.config(
       "@typescript-eslint/unbound-method": "off",
       "@typescript-eslint/no-unsafe-argument": "off",
       "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/require-await": "off",
       "@typescript-eslint/restrict-template-expressions": ["error", { "allowNumber": true }],
       "no-console": "off",
       curly: "error",
