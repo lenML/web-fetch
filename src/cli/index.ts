@@ -7,18 +7,16 @@
 
 import { Command } from "commander";
 import { readFileSync } from "fs";
+import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
-import { dirname, resolve } from "path";
 import { fetch_url } from "../core/fetcher.js";
 import { transform_content } from "../core/transformer.js";
 import pico from "picocolors";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
 function get_version(): string {
-  const pkg_path = resolve(__dirname, "../../package.json");
-  const pkg = JSON.parse(readFileSync(pkg_path, "utf-8")) as { version: string };
+  const pkg_path = resolve(dirname(fileURLToPath(import.meta.url)), "../../package.json");
+  const pkg_text = readFileSync(pkg_path, "utf-8");
+  const pkg = JSON.parse(pkg_text) as { version: string };
   return pkg.version;
 }
 
@@ -69,25 +67,28 @@ export async function run_cli(args: string[]): Promise<string> {
   const original_error = console.error;
   const original_exit = process.exit;
 
-  process.stdout.write = ((chunk: string | Uint8Array) => {
+  process.stdout.write = ((chunk: string | Uint8Array): boolean => {
     stdout_chunks.push(String(chunk));
     return true;
-  }) as typeof process.stdout.write;
+  });
 
-  process.stderr.write = ((chunk: string | Uint8Array) => {
+  process.stderr.write = ((chunk: string | Uint8Array): boolean => {
     stderr_chunks.push(String(chunk));
     return true;
-  }) as typeof process.stderr.write;
+  });
 
-  console.log = (...msgs: string[]) => {
+  const capture_stdout = (...msgs: string[]): void => {
     stdout_chunks.push(msgs.join(" ") + "\n");
   };
-  console.error = (...msgs: string[]) => {
+  console.log = capture_stdout;
+  const capture_stderr = (...msgs: string[]): void => {
     stderr_chunks.push(msgs.join(" ") + "\n");
   };
-  process.exit = ((_code?: number) => {
-    throw new Error(`process.exit(${_code ?? 0})`);
-  }) as typeof process.exit;
+  console.error = capture_stderr;
+  const exit_override = (_code?: number): never => {
+    throw new Error(`process.exit(${String(_code ?? 0)})`);
+  };
+  process.exit = exit_override;
 
   try {
     await program.parseAsync(args, { from: "user" });

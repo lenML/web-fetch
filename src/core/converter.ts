@@ -6,10 +6,12 @@
 import { JSDOM } from "jsdom";
 import TurndownService from "turndown";
 
+/* eslint-disable @typescript-eslint/naming-convention */
 const turndown_service = new TurndownService({
   headingStyle: "atx",
   codeBlockStyle: "fenced",
 });
+/* eslint-enable @typescript-eslint/naming-convention */
 
 /**
  * Convert HTML string to Markdown.
@@ -38,6 +40,6 @@ export function convert_html_to_markdown(html: string): string {
  * @returns Formatted JSON string
  */
 export function convert_json_to_toon(json: string): string {
-  const parsed = JSON.parse(json);
+  const parsed: unknown = JSON.parse(json);
   return JSON.stringify(parsed, null, 2);
 }

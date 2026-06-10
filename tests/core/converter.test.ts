@@ -22,7 +22,7 @@ describe("convert_html_to_markdown", () => {
    * Then it should produce markdown link syntax
    */
   it("should convert html links to markdown", () => {
-    const html = '\u003ca href=\"https://example.com\"\u003eExample\u003c/a\u003e';
+    const html = "<a href=\"https://example.com\">Example</a>";
     const md = convert_html_to_markdown(html);
     expect(md).toContain("[Example](https://example.com)");
   });
@@ -61,7 +61,7 @@ describe("convert_json_to_toon", () => {
    * Then it should return formatted JSON with array
    */
   it("should format json array", () => {
-    const json = '[1, 2, 3]';
+    const json = "[1, 2, 3]";
     const result = convert_json_to_toon(json);
     expect(result).toContain("1");
     expect(result).toContain("2");
