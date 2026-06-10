@@ -1,0 +1,45 @@
+{
+  "name": "@lenml/web-fetch",
+  "version": "0.1.0",
+  "description": "Fetch web content and auto-convert to compressed formats",
+  "type": "module",
+  "main": "./src/core/index.ts",
+  "bin": {
+    "web-fetch": "./src/cli/index.ts"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/ tests/",
+    "lint:bdd": "tsx scripts/lint-bdd.ts",
+    "lint:encoding": "tsx scripts/lint-encoding.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@10.12.4",
+  "dependencies": {
+    "commander": "^15.0.0",
+    "jsdom": "^29.1.1",
+    "pdf-parse": "^2.4.5",
+    "picocolors": "^1.1.1",
+    "turndown": "^7.2.4",
+    "undici": "^8.4.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/jsdom": "^28.0.3",
+    "@types/node": "^25.9.2",
+    "@types/pdf-parse": "^1.1.5",
+    "@types/turndown": "^5.0.6",
+    "eslint": "^10.4.1",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.0",
+    "vitest": "^4.1.8"
+  }
+}
