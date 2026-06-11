@@ -6,7 +6,8 @@ Fetch web content — auto-convert, chunk, cache with progressive disclosure.
 web-fetch <url>
 ```
 
-HTML → Markdown, JSON → formatted, PDF → text sections. Large content → auto-chunked temp cache. Original binaries preserved.
+HTML → Markdown, JSON → formatted, PDF → text sections, CSV → table.
+Large content → auto-chunked temp cache. Original binaries preserved.
 
 ## Install
 
@@ -27,6 +28,12 @@ web-fetch https://example.com/large-doc
 
 # PDF: original preserved + text extracted by sections
 web-fetch https://example.com/paper.pdf
+
+# CSV: formatted as markdown table, chunks of 100 rows
+web-fetch https://example.com/data.csv
+
+# ZIP: file listing + extracted text files content
+web-fetch https://example.com/archive.zip
 
 # Show cached index
 web-fetch --cache <id>
@@ -72,9 +79,11 @@ Content auto-saved to `.fetch-cache/` (local CWD) or `$TMPDIR/web-fetch-cache/` 
 
 | Type | Conversion | Chunking |
 |------|-----------|----------|
-| HTML | Turndown → Markdown | By `<h1>`/`<h2>`/`<h3>` headings |
+| HTML | Turndown → Markdown | By h1/h2/h3 headings |
 | JSON | Pretty-print (2-space) | By top-level keys / array elements |
-| PDF | pdf-parse v2 → text | By detected headings (numbered, all-caps, etc.) |
+| PDF | pdf-parse v2 text extraction | By detected headings, min 1000 chars per chunk |
+| CSV | Markdown table | 100 rows per chunk (header repeated) |
+| ZIP | File listing + text file extraction | Per-file chunks |
 | Binary (image, etc.) | Saved as-is | Single file |
 | Unknown text | Raw | Paragraph split fallback |
 
@@ -95,12 +104,13 @@ pnpm typecheck
 ```
 
 Built with:
-- **vite** / **vitest** (test runner)
+- **vite** / **vitest**
 - **undici** (HTTP fetch)
-- **turndown** (HTML → Markdown)
+- **turndown** (HTML to Markdown)
 - **jsdom** (HTML parsing)
 - **pdf-parse** v2 (PDF text extraction)
+- **adm-zip** (ZIP extraction)
 - **commander** (CLI framework)
 - **picocolors** (terminal colors)
-- **eslint** + **typescript-eslint** (strict, snake_case convention)
+- **eslint** + **typescript-eslint** (strict)
 - **TypeScript 6** + strict mode

@@ -10,6 +10,8 @@ export enum ContentType {
   html = "html",
   pdf = "pdf",
   json = "json",
+  csv = "csv",
+  zip = "zip",
   unknown = "unknown",
 }
 
@@ -28,11 +30,15 @@ export function detect_content_type(content_type: string | undefined, url?: stri
     if (lower.includes("text/html")) { return ContentType.html; }
     if (lower.includes("application/pdf")) { return ContentType.pdf; }
     if (lower.includes("application/json")) { return ContentType.json; }
+    if (lower.includes("text/csv")) { return ContentType.csv; }
+    if (lower.includes("application/zip") || lower.includes("application/gzip") || lower.includes("application/x-tar")) { return ContentType.zip; }
 
     // Generic binary — check URL extension
     if (lower.includes("application/octet-stream") && url) {
       const ext = url.toLowerCase().split("?").shift()?.split("#").shift()?.split(".").pop();
       if (ext === "pdf") { return ContentType.pdf; }
+      if (ext === "zip" || ext === "tar" || ext === "gz" || ext === "tgz") { return ContentType.zip; }
+      if (ext === "csv") { return ContentType.csv; }
       // fall through to unknown
     }
   }
@@ -42,6 +48,8 @@ export function detect_content_type(content_type: string | undefined, url?: stri
     const ext = url.toLowerCase().split("?").shift()?.split("#").shift()?.split(".").pop();
     if (ext === "pdf") { return ContentType.pdf; }
     if (ext === "json") { return ContentType.json; }
+    if (ext === "csv") { return ContentType.csv; }
+    if (ext === "zip" || ext === "tar" || ext === "gz" || ext === "tgz") { return ContentType.zip; }
     if (ext === "html" || ext === "htm") { return ContentType.html; }
   }
 

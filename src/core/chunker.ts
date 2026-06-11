@@ -40,6 +40,66 @@ export function should_chunk(content: string): boolean {
  * @param html - Raw HTML string
  * @returns Array of content chunks
  */
+/**
+ * Chunk CSV content by row groups (100 rows per chunk, header repeated).
+ * For small CSV (<=101 rows including header), returns empty array (inline).
+ */
+export function chunk_csv_by_row_groups(csv_rows: string[][]): ContentChunk[] {
+  if (csv_rows.length <= 101) { return []; }
+  const header = csv_rows[0];
+  const max_cols = csv_rows.reduce((m, r) => Math.max(m, r.length), 0);
+  const pad = (r: string[]): string[] => r.concat(Array.from({ length: max_cols - r.length }, () => ""));
+
+  const chunks: ContentChunk[] = [];
+  const group_size = 100;
+  for (let start = 1; start < csv_rows.length; start += group_size) {
+    const end = Math.min(start + group_size, csv_rows.length);
+    const out: string[] = [];
+    out.push(`| ${pad(header).join(" | ")} |`);
+    out.push(`| ${header.map(() => "---").join(" | ")} |`);
+    for (let i = start; i < end; i++) {
+      out.push(`| ${pad(csv_rows[i]).join(" | ")} |`);
+    }
+    const key = `rows_${start}_${end - 1}`;
+    chunks.push({ key, title: `rows ${start}-${end - 1}`, content: out.join("\n") });
+  }
+  return chunks;
+}
+
+/** List of text-file extensions to extract content from inside archives. */
+const ARCHIVE_TEXT_EXTS = new Set(["txt","md","json","xml","csv","yml","yaml","toml","ini","cfg","conf","log","sh","bat","ps1","py","js","ts","tsx","jsx","css","html","htm","svg","lua","rb","go","rs","java","c","cpp","h","hpp","sql","r","m","swift"]);
+
+/**
+ * Chunk ZIP archive contents: one chunk per readable text file + one index chunk listing all files.
+ */
+export async function chunk_zip_contents(zip_buffer: Buffer): Promise<ContentChunk[]> {
+  const chunks: ContentChunk[] = [];
+  try {
+    const { default: adm_zip } = await import("adm-zip");
+    const zip = new adm_zip(zip_buffer);
+    const entries = zip.getEntries();
+    const file_list = entries.map((e) => `${e.entryName}  (${e.header.size} B)`);
+    chunks.push({
+      key: "index",
+      title: "file index",
+      content: `Archive contains ${entries.length} files:\n\n${file_list.join("\n")}`,
+    });
+    for (const entry of entries) {
+      if (entry.isDirectory) { continue; }
+      const name: string = entry.entryName.toLowerCase();
+      const ext: string = name.split(".").pop() ?? "";
+      if (!ARCHIVE_TEXT_EXTS.has(ext)) { continue; }
+      const text_content: string = entry.getData().toString("utf-8").trim();
+      if (text_content.length === 0) { continue; }
+      const key = entry.entryName.replace(/[^a-z0-9._-]+/gi, "_").slice(0, 60) || "file";
+      chunks.push({ key, title: entry.entryName, content: text_content.slice(0, 50000) });
+    }
+  } catch {
+    chunks.push({ key: "error", title: "extraction error", content: "Failed to extract archive contents." });
+  }
+  return chunks;
+}
+
 export function chunk_html_by_headings(html: string): ContentChunk[] {
   const dom = new JSDOM(html);
   const doc = dom.window.document;

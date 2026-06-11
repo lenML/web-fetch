@@ -7,8 +7,8 @@
  */
 
 import { ContentType, detect_content_type } from "./detector.js";
-import { convert_html_to_markdown, convert_json_to_toon } from "./converter.js";
-import { should_chunk, chunk_html_by_headings, chunk_json_by_keys, chunk_text_by_headings } from "./chunker.js";
+import { convert_html_to_markdown, convert_json_to_toon, convert_csv_to_markdown } from "./converter.js";
+import { should_chunk, chunk_html_by_headings, chunk_json_by_keys, chunk_text_by_headings, chunk_csv_by_row_groups, chunk_zip_contents } from "./chunker.js";
 import type { ContentChunk } from "./chunker.js";
 import { TempStore } from "./temp_store.js";
 import type { ResolvedFetch } from "./temp_store.js";
@@ -167,6 +167,83 @@ export async function transform_content(
       };
     }
 
+
+    case ContentType.csv: {
+      const md = convert_csv_to_markdown(text);
+      // parse csv for chunking
+      const csv_rows: string[][] = ((): string[][] => {
+        const rows: string[][] = [];
+        let cur_row: string[] = [];
+        let cur_field = "";
+        let in_q = false;
+        let i = 0;
+        while (i < text.length) {
+          const ch = text[i];
+          if (in_q) {
+            if (ch === '"') {
+              if (i + 1 < text.length && text[i + 1] === '"') { cur_field += '"'; i += 2; continue; }
+              in_q = false;
+            } else { cur_field += ch; }
+            i++; continue;
+          }
+          if (ch === '"') { in_q = true; i++; continue; }
+          if (ch === ",") { cur_row.push(cur_field); cur_field = ""; i++; continue; }
+          if (ch === "\r") { i++; continue; }
+          if (ch === "\n") {
+            cur_row.push(cur_field); cur_field = "";
+            if (cur_row.length > 0) { rows.push(cur_row); }
+            cur_row = []; i++; continue;
+          }
+          cur_field += ch; i++;
+        }
+        if (cur_field !== "" || cur_row.length > 0) { cur_row.push(cur_field); if (cur_row.length > 0) { rows.push(cur_row); } }
+        return rows;
+      })();
+
+      const csv_chunks = chunk_csv_by_row_groups(csv_rows);
+      if (csv_chunks.length === 0) {
+        return { type: "csv", data: md, inline: true, chunks: [] };
+      }
+
+      const chunks_for_save = csv_chunks.map((c) => ({ key: c.key, title: c.title, content: c.content }));
+      const store_local = new TempStore({ use_global_cache });
+      const record = store_local.save_fetch({ url, content_type: "text/csv", chunks: chunks_for_save });
+      const resolved = store_local.resolve_fetch(record.id);
+      if (resolved == null) { throw new Error("failed to resolve fetch"); }
+      return { type: "csv", data: "", inline: false, chunks: csv_chunks, fetch_record: resolved };
+    }
+
+    case ContentType.zip: {
+      const raw_body = typeof body === "string" ? Buffer.from(body, "utf-8") : body;
+      const store_local = new TempStore({ use_global_cache });
+
+      // save original archive
+      const zip_record = store_local.save_fetch({
+        url, content_type: "application/zip",
+        chunks: [{ key: "archive", title: "original archive", content: raw_body, filename: "archive.zip" }],
+      });
+      const original_path = zip_record.chunks[0].path;
+
+      // extract contents
+      const zip_chunks = await chunk_zip_contents(raw_body);
+      if (zip_chunks.length === 1 && zip_chunks[0].key === "error") {
+        return {
+          type: "zip", data: "", inline: false, chunks: zip_chunks,
+          fetch_record: store_local.resolve_fetch(zip_record.id) ?? undefined, original_path,
+        };
+      }
+
+      const chunks_for_save = zip_chunks.map((c) => ({ key: c.key, title: c.title, content: c.content }));
+      const text_record = store_local.save_fetch({
+        url: `zip:contents:${url}`,
+        content_type: "text/plain",
+        chunks: chunks_for_save,
+      });
+
+      const resolved = store_local.resolve_fetch(text_record.id);
+      if (resolved == null) { throw new Error("failed to resolve fetch"); }
+      return { type: "zip", data: "", inline: false, chunks: zip_chunks, fetch_record: resolved, original_path };
+    }
     default: {
       if (is_binary_content_type(content_type_header)) {
         const raw_body = typeof body === "string" ? Buffer.from(body, "utf-8") : body;
