@@ -56,4 +56,26 @@ describe("detect_content_type", () => {
     const result = detect_content_type(undefined);
     expect(result).toBe(ContentType.unknown);
   });
+
+  /**
+   * URL extension detection
+   * Given a URL ending in .pdf without Content-Type header
+   * When detect_content_type is called
+   * Then it should return ContentType.pdf
+   */
+  it("should detect pdf from url extension", () => {
+    const result = detect_content_type(undefined, "https://example.com/doc.pdf");
+    expect(result).toBe(ContentType.pdf);
+  });
+
+  /**
+   * URL extension detection with octet-stream header
+   * Given a PDF URL with generic octet-stream Content-Type
+   * When detect_content_type is called
+   * Then it should return ContentType.pdf via URL extension fallback
+   */
+  it("should detect pdf via url when header is octet-stream", () => {
+    const result = detect_content_type("application/octet-stream", "https://example.com/paper.pdf");
+    expect(result).toBe(ContentType.pdf);
+  });
 });

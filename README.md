@@ -1,12 +1,12 @@
 # web-fetch
 
-Fetch web content — auto-convert and cache to temp files.
+Fetch web content — auto-convert, chunk, cache with progressive disclosure.
 
-```
+```bash
 web-fetch <url>
 ```
 
-HTML → Markdown, JSON → formatted. Large content → chunked temp cache with progressive disclosure.
+HTML → Markdown, JSON → formatted, PDF → text sections. Large content → auto-chunked temp cache. Original binaries preserved.
 
 ## Install
 
@@ -25,6 +25,9 @@ web-fetch https://example.com
 # Large content: auto-chunked, first chunk previewed
 web-fetch https://example.com/large-doc
 
+# PDF: original preserved + text extracted by sections
+web-fetch https://example.com/paper.pdf
+
 # Show cached index
 web-fetch --cache <id>
 
@@ -37,43 +40,51 @@ web-fetch
 # Through proxy
 web-fetch --proxy http://127.0.0.1:10808 https://example.com
 
-# Raw output
-web-fetch --raw https://example.com
+# Raw output (no conversion)
+web-fetch -r https://example.com
 ```
 
 ## Options
 
 | Flag | Description |
 |------|-------------|
-| `--proxy <url>` | HTTP/SOCKS proxy (e.g. `http://127.0.0.1:10808`) |
+| `--proxy <url>` | HTTP/SOCKS proxy (skip auto-discovery) |
 | `--cache <id>` | View cached fetch index |
 | `--chunk <key>` | View chunk from cache (use with `--cache <id>`) |
-| `-r, --raw` | Raw output, no conversion |
+| `-r, --raw` | Raw binary output, no conversion |
 | `-i, --inline` | Force inline output, no chunking |
+| `-g, --global-cache` | Use OS temp dir instead of local `.fetch-cache/` |
 | `-h, --help` | Show help |
 | `--version` | Show version |
 
-## Progressive Disclosure
+## Design
 
-Content auto-saved to `$TMPDIR/web-fetch-cache/`:
+### Progressive Disclosure
+
+Content auto-saved to `.fetch-cache/` (local CWD) or `$TMPDIR/web-fetch-cache/` (global):
 
 - **<50KB** — inline output
-- **>50KB** — split into chunks (HTML by headings using innerHTML, JSON by keys), first chunk shown inline
-- **>1 day** — cache marked stale (metadata preserved)
-- **>30 days** — cache auto-deleted
+- **>50KB** — split into chunks, first chunk previewed, remaining chunks referenced by key
+- **>1 day** — cache marked stale (metadata preserved, content needs re-fetch)
+- **>30 days** — cache auto-deleted on next cleanup
 
-## Cache Management
+### Content Handling
 
-```bash
-# List cached fetches
-web-fetch
+| Type | Conversion | Chunking |
+|------|-----------|----------|
+| HTML | Turndown → Markdown | By `<h1>`/`<h2>`/`<h3>` headings |
+| JSON | Pretty-print (2-space) | By top-level keys / array elements |
+| PDF | pdf-parse v2 → text | By detected headings (numbered, all-caps, etc.) |
+| Binary (image, etc.) | Saved as-is | Single file |
+| Unknown text | Raw | Paragraph split fallback |
 
-# View cache index
-web-fetch --cache a1b2c3d4
+### Proxy Auto-Discovery
 
-# View specific chunk
-web-fetch --cache a1b2c3d4 --chunk section_1
-```
+Direct connection attempted first. On failure, reads `HTTP_PROXY`, `HTTPS_PROXY`, `all_proxy` env vars, then tries known endpoints (`http://nas:7890`, `http://127.0.0.1:10808`).
+
+### Caching
+
+Default cache is project-local `.fetch-cache/`. Use `--global-cache` for OS temp directory. Each fetch creates a subdirectory with `index.json` (metadata) and chunk files. Stale records (1d+) show metadata but mark content as expired. Very old records (30d+) auto-deleted.
 
 ## Dev
 
@@ -82,3 +93,14 @@ pnpm test
 pnpm lint
 pnpm typecheck
 ```
+
+Built with:
+- **vite** / **vitest** (test runner)
+- **undici** (HTTP fetch)
+- **turndown** (HTML → Markdown)
+- **jsdom** (HTML parsing)
+- **pdf-parse** v2 (PDF text extraction)
+- **commander** (CLI framework)
+- **picocolors** (terminal colors)
+- **eslint** + **typescript-eslint** (strict, snake_case convention)
+- **TypeScript 6** + strict mode

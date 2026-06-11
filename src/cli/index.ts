@@ -14,6 +14,14 @@ import { transform_content, TempStore } from "../core/transformer.js";
 import type { ResolvedFetch } from "../core/transformer.js";
 import pico from "picocolors";
 
+/** Return shorter of relative path vs absolute path. */
+function shorten_path(abs_path: string): string {
+  const rel = abs_path.startsWith(process.cwd())
+    ? abs_path.slice(process.cwd().length + 1)
+    : abs_path;
+  return rel.length < abs_path.length ? rel : abs_path;
+}
+
 function get_version(): string {
   const pkg_path = resolve(dirname(fileURLToPath(import.meta.url)), "../../package.json");
   const pkg_text = readFileSync(pkg_path, "utf-8");
@@ -33,11 +41,13 @@ program
   .option("--proxy <url>", "HTTP/SOCKS proxy (e.g. http://127.0.0.1:10808)")
   .option("--cache <id>", "View cached fetch index by ID")
   .option("--chunk <key>", "View a specific chunk from a cached record (use with --cache <id>)")
-  .action(async (url: string | undefined, options: { raw?: boolean; inline?: boolean; proxy?: string; cache?: string; chunk?: string }) => {
+  .option("-g, --global-cache", "Use global cache directory instead of local .fetch-cache")
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  .action(async (url: string | undefined, options: { raw?: boolean; inline?: boolean; proxy?: string; cache?: string; chunk?: string; globalCache?: boolean }) => {
     try {
       // --cache <id> : show index
       if (options.cache && !options.chunk) {
-        const store = new TempStore();
+        const store = new TempStore({ use_global_cache: options.globalCache });
         const record = store.resolve_fetch(options.cache);
         if (!record) {
           console.error(pico.red(`Record not found or expired: ${options.cache}`));
@@ -49,7 +59,7 @@ program
 
       // --cache <id> --chunk <key> : show chunk content
       if (options.cache && options.chunk) {
-        const store = new TempStore();
+        const store = new TempStore({ use_global_cache: options.globalCache });
         const record = store.resolve_fetch(options.cache);
         if (!record) {
           console.error(pico.red(`Record not found: ${options.cache}`));
@@ -62,11 +72,12 @@ program
         }
         console.log(readFileSync(chunk.path, "utf-8"));
         return;
+        return;
       }
 
       // No URL → list cache
       if (!url) {
-        const store = new TempStore();
+        const store = new TempStore({ use_global_cache: options.globalCache });
         const list = store.list_fetches();
         if (list.length === 0) {
           console.log(pico.dim("No cached fetches."));
@@ -91,19 +102,23 @@ program
       }
 
       if (options.raw) {
-        console.log(result.body);
+        // body is Buffer — output raw bytes to stdout
+        process.stdout.write(result.body);
         return;
       }
 
-      const transformed = transform_content(result.body, result.content_type, url);
+      const transformed = await transform_content(result.body, result.content_type, url, options.globalCache);
 
       if (transformed.inline || options.inline) {
         console.log(transformed.data);
       } else {
-        // Progressive disclosure: show index on stderr + stdout
+        // Progressive disclosure
+        if (transformed.original_path) {
+          console.error(pico.dim(`  Original file: ${shorten_path(transformed.original_path)}`));
+        }
         if (transformed.fetch_record) {
           const size = transformed.fetch_record.chunks.reduce((s, c) => s + c.size, 0);
-          console.error(pico.cyan(`  ${format_size(size)}, ${transformed.fetch_record.chunks.length} chunks — cached to ${transformed.fetch_record.id}`));
+          console.error(pico.cyan(`  ${format_size(size)}, ${transformed.fetch_record.chunks.length} chunks extracted — cached to ${transformed.fetch_record.id}`));
           console.error("");
           if (transformed.fetch_record.chunks.length > 0) {
             const first = transformed.fetch_record.chunks[0];
@@ -113,6 +128,9 @@ program
           console.error("");
           console.error(pico.dim(`  Show index:  web-fetch --cache ${transformed.fetch_record.id}`));
           console.error(pico.dim(`  Show chunk:  web-fetch --cache ${transformed.fetch_record.id} --chunk <key>`));
+          if (transformed.original_path) {
+            console.error(pico.dim(`  Original PDF: ${shorten_path(transformed.original_path)}`));
+          }
         }
       }
     } catch (err) {
@@ -136,7 +154,7 @@ function format_index(record: ResolvedFetch): string {
   ];
 
   for (const [i, chunk] of record.chunks.entries()) {
-    lines.push(`  ${String(i + 1).padStart(2)}. ${chunk.title}  → ${chunk.path}  (${format_size(chunk.size)})`);
+    lines.push(`  ${String(i + 1).padStart(2)}. ${chunk.title}  → ${shorten_path(chunk.path)}  (${format_size(chunk.size)})`);
   }
 
   lines.push("");

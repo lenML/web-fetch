@@ -10,6 +10,7 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync, statSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import { cwd } from "process";
 import { randomBytes } from "crypto";
 
 /**
@@ -65,7 +66,9 @@ export interface SaveFetchInput {
   chunks: {
     key: string;
     title: string;
-    content: string;
+    content: string | Buffer;
+    /** Override filename (e.g. "document.pdf") — default: {key}.md */
+    filename?: string;
   }[];
 }
 
@@ -102,8 +105,17 @@ function ensure_dir(dir: string): void {
 export class TempStore {
   private readonly base_dir: string;
 
-  constructor(options?: { base_dir?: string }) {
-    this.base_dir = options?.base_dir ?? join(tmpdir(), "web-fetch-cache");
+  /** Local cache dir inside the project cwd */
+  static readonly local_base = join(cwd(), ".fetch-cache");
+  /** Global cache dir in OS temp */
+  static readonly global_base = join(tmpdir(), "web-fetch-cache");
+
+  constructor(options?: { base_dir?: string; use_global_cache?: boolean }) {
+    if (options?.use_global_cache) {
+      this.base_dir = options.base_dir ?? TempStore.global_base;
+    } else {
+      this.base_dir = options?.base_dir ?? TempStore.local_base;
+    }
     ensure_dir(this.base_dir);
   }
 
@@ -122,7 +134,7 @@ export class TempStore {
     const saved_chunks: SavedChunk[] = [];
 
     for (const chunk of input.chunks) {
-      const filename = `${chunk.key}.md`;
+      const filename = chunk.filename ?? `${chunk.key}.md`;
       const filepath = join(dir, filename);
       writeFileSync(filepath, chunk.content, "utf-8");
 

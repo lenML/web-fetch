@@ -1,6 +1,6 @@
 /**
  * Content type detection module.
- * Parses HTTP Content-Type headers and maps to internal enum.
+ * Parses HTTP Content-Type headers and URL extension to map to internal enum.
  */
 
 /**
@@ -14,27 +14,35 @@ export enum ContentType {
 }
 
 /**
- * Detect content type from HTTP Content-Type header string.
- * @param content_type - Raw Content-Type header value (e.g. "text/html; charset=utf-8")
+ * Detect content type from HTTP Content-Type header + URL extension.
+ * Falls back to URL extension when header is generic (octet-stream).
+ *
+ * @param content_type - Raw Content-Type header value
+ * @param url - Optional source URL (used for extension-based detection)
  * @returns Detected ContentType enum
  */
-export function detect_content_type(content_type: string | undefined): ContentType {
-  if (content_type == null) {
-    return ContentType.unknown;
+export function detect_content_type(content_type: string | undefined, url?: string): ContentType {
+  if (content_type != null) {
+    const lower = content_type.toLowerCase();
+
+    if (lower.includes("text/html")) { return ContentType.html; }
+    if (lower.includes("application/pdf")) { return ContentType.pdf; }
+    if (lower.includes("application/json")) { return ContentType.json; }
+
+    // Generic binary — check URL extension
+    if (lower.includes("application/octet-stream") && url) {
+      const ext = url.toLowerCase().split("?").shift()?.split("#").shift()?.split(".").pop();
+      if (ext === "pdf") { return ContentType.pdf; }
+      // fall through to unknown
+    }
   }
 
-  const lower = content_type.toLowerCase();
-
-  if (lower.includes("text/html")) {
-    return ContentType.html;
-  }
-
-  if (lower.includes("application/pdf")) {
-    return ContentType.pdf;
-  }
-
-  if (lower.includes("application/json")) {
-    return ContentType.json;
+  // No header — try URL extension
+  if (url) {
+    const ext = url.toLowerCase().split("?").shift()?.split("#").shift()?.split(".").pop();
+    if (ext === "pdf") { return ContentType.pdf; }
+    if (ext === "json") { return ContentType.json; }
+    if (ext === "html" || ext === "htm") { return ContentType.html; }
   }
 
   return ContentType.unknown;
