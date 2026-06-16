@@ -7,6 +7,9 @@
 
 import { request, ProxyAgent } from "undici";
 
+/** Default max download size: 100 MB. */
+const MAX_DOWNLOAD_SIZE = 100 * 1024 * 1024;
+
 /**
  * Structured fetch result.
  * body is always raw bytes; decode to string for text-based types.
@@ -42,9 +45,24 @@ async function do_fetch(url: string, proxy_url?: string): Promise<FetchResult> {
   const dispatcher = proxy_url ? new ProxyAgent(proxy_url) : undefined;
   const response = await request(url, { dispatcher });
 
+  // Check Content-Length header before streaming body
+  const content_length_str = response.headers["content-length"] as string | undefined;
+  if (content_length_str) {
+    const content_length = parseInt(content_length_str, 10);
+    if (!isNaN(content_length) && content_length > MAX_DOWNLOAD_SIZE) {
+      throw new Error(`Download too large: ${content_length} bytes exceeds ${MAX_DOWNLOAD_SIZE} byte limit`);
+    }
+  }
+
   const chunks: Buffer[] = [];
+  let total_size = 0;
   for await (const chunk of response.body) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total_size += buf.length;
+    if (total_size > MAX_DOWNLOAD_SIZE) {
+      throw new Error(`Download exceeded ${MAX_DOWNLOAD_SIZE} byte limit after ${total_size} bytes`);
+    }
+    chunks.push(buf);
   }
   const body = Buffer.concat(chunks);
   const content_type = response.headers["content-type"] as string | undefined;
